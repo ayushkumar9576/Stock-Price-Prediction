@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 class BaseMissingValueStrategy(ABC):
     @abstractmethod
     def handle_missing_value(self, df: pd.DataFrame)-> pd.DataFrame:
-        pass
+        raise NotImplementedError
 
 class TimeSeriesImputer(BaseMissingValueStrategy):
     def __init__(self, columns: list[str] | None = None)-> None:
@@ -71,20 +71,20 @@ class MeanImputer(BaseMissingValueStrategy):
 class DropMissingValues(BaseMissingValueStrategy):
     def __init__(self, axis: int = 0, thresh: int|None = None)-> None:
         if axis not in (0, 1):
-            raise ValueError("axis must be 0 (rows) or 1 (columns).")
+            raise ValueError("_axis must be 0 (rows) or 1 (columns).")
 
         if thresh is not None and thresh < 0:
             raise ValueError("thresh must be greater than or equal to 0.")
 
-        self.thresh = thresh
-        self.axis = axis
+        self._thresh = thresh
+        self._axis = axis
     
     def handle_missing_value(self, df: pd.DataFrame)-> pd.DataFrame:
-        logger.info(f"Dropping missing value with axis = {self.axis} and thresh = {self.thresh}")
+        logger.info(f"Dropping missing value with axis = {self._axis} and thresh = {self._thresh}")
 
-        kwargs = {"axis": self.axis}
-        if self.thresh is not None:
-            kwargs["thresh"] = self.thresh
+        kwargs = {"axis": self._axis}
+        if self._thresh is not None:
+            kwargs["thresh"] = self._thresh
 
         cleaned = df.dropna(**kwargs)
         
@@ -93,10 +93,16 @@ class DropMissingValues(BaseMissingValueStrategy):
 
 class MissingValueHandler:
     def __init__(self, strategy: BaseMissingValueStrategy)-> None:
+        if not isinstance(strategy, BaseMissingValueStrategy):
+            raise TypeError(f"Expected BaseMissingValueStrategy, got {type(strategy)}")
+        
         logger.info(f"Setting the strategy for Handling Missing Values: {strategy.__class__.__name__}")
         self._strategy = strategy
     
     def set_strategy(self, strategy: BaseMissingValueStrategy)-> None:
+        if not isinstance(strategy, BaseMissingValueStrategy):
+            raise TypeError(f"Expected BaseMissingValueStrategy, got {type(strategy)}")
+
         logger.info(f"Changing the strategy for handling missing values: {strategy.__class__.__name__}")
         self._strategy = strategy
     

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class BaseDataLoader(ABC):
     @abstractmethod
     def load(self, ticker: str, start: str, end: str)-> pd.DataFrame:
-        pass
+        raise NotImplementedError
 
 class YFinanceLoader(BaseDataLoader):
 
@@ -27,7 +27,11 @@ class YFinanceLoader(BaseDataLoader):
         
         logger.info(f"[{ticker}] downloading the data from the Yahoo Finance between ({start} to {end})")
 
-        df = yf.download(ticker, start= start,end= end, auto_adjust=True)
+        try:
+            df = yf.download(ticker, start= start,end= end, auto_adjust=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to downlaod the data for {ticker}") from e
+
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
@@ -40,10 +44,11 @@ class YFinanceLoader(BaseDataLoader):
         return df
 
 class CSVLoader(BaseDataLoader):
-    def __init__(self, raw_dir: str)-> None:
+    def __init__(self, raw_dir: str)-> None:        
         self._raw_dir = raw_dir
     
     def load(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+
         logger.info("Loading the stock data from a pre-loaded CSV")
         csv_path = os.path.join(self._raw_dir, f"{ticker}.csv")
 
@@ -62,13 +67,20 @@ class CSVLoader(BaseDataLoader):
 
 class DataLoader:
     def __init__(self, strategy: BaseDataLoader)-> None:
+        if not isinstance(strategy, BaseDataLoader):
+            raise TypeError(f"Expected BaseDataLoader, got {type(strategy)}")
+
         logger.info(f"Setting the strategy for data loading: {strategy.__class__.__name__}")
         self._strategy = strategy
     
     def set_strategy(self, strategy: BaseDataLoader)-> None:
+        if not isinstance(strategy, BaseDataLoader):
+            raise TypeError(f"Expected BaseDataLoader, got {type(strategy)}")
+
         logger.info(f"Changing the strategy for loading the data: {strategy.__class__.__name__}")
         self._strategy = strategy
     
     def load(self, ticker: str, start: str, end: str)-> pd.DataFrame:
         logger.info("Loading the data using the selected strategy")
         return self._strategy.load(ticker, start, end)
+
