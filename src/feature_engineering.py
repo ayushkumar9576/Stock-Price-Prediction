@@ -1,3 +1,8 @@
+"""
+AVAILABLE STRATEGIES:
+    1. EMAFeatureEngineer — Generates Exponential Moving Average (EMA) features over specified window spans.
+"""
+
 import logging
 from abc import ABC, abstractmethod
 import pandas as pd
@@ -40,6 +45,17 @@ class FeatureEngineer:
         logger.info(f"Setting the strategy for feature engineering: {strategy.__class__.__name__}")
         self._strategy = strategy
     
+    @property
+    def strategy(self) -> BaseFeatureEngineer:
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy: BaseFeatureEngineer) -> None:
+        if not isinstance(strategy, BaseFeatureEngineer):
+            raise TypeError(f"Expected a BaseFeatureEngineer, got {type(strategy)}")
+        logger.info(f"FeatureEngineer — strategy set to: {type(strategy).__name__}")
+        self._strategy = strategy
+
     def set_strategy(self, strategy: BaseFeatureEngineer)-> None:
         if not isinstance(strategy, BaseFeatureEngineer):
             raise TypeError(f"Expected BaseFeatureEngineer, got {type(strategy)}")

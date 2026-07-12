@@ -1,3 +1,9 @@
+"""
+AVAILABLE STRATEGIES:
+    1. ZScoreOutlierDetection  — Flags rows where any value's Z-score exceeds a threshold (default: 3).
+    2. IQROutlierDetection     — Flags rows outside 1.5× the interquartile range (Q1–Q3).
+"""
+
 from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod

@@ -1,3 +1,10 @@
+"""
+STRATEGIES:
+    1. MeanImputer        — Fills missing values with the mean of each numerical column.
+    2. TimeSeriesImputer  — Fills missing values in time series data using forward fill, backward fill, or interpolation.
+    3. DropMissingValues  — Drops rows or columns containing missing values based on the specified criteria.
+"""
+
 import logging
 from abc import ABC, abstractmethod
 import pandas as pd
@@ -99,6 +106,17 @@ class MissingValueHandler:
         logger.info(f"Setting the strategy for Handling Missing Values: {strategy.__class__.__name__}")
         self._strategy = strategy
     
+    @property
+    def strategy(self) -> BaseMissingValueStrategy:
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy: BaseMissingValueStrategy) -> None:
+        if not isinstance(strategy, BaseMissingValueStrategy):
+            raise TypeError(f"Expected a BaseMissingValueStrategy, got {type(strategy)}")
+        logger.info(f"MissingValueHandler — strategy set to: {type(strategy).__name__}")
+        self._strategy = strategy
+
     def set_strategy(self, strategy: BaseMissingValueStrategy)-> None:
         if not isinstance(strategy, BaseMissingValueStrategy):
             raise TypeError(f"Expected BaseMissingValueStrategy, got {type(strategy)}")

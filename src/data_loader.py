@@ -1,3 +1,9 @@
+"""
+STRATEGIES:
+    1. CSVLoader         — Loads datasets from CSV files into a pandas DataFrame.
+    2. YFinanceLoader    — Downloads historical financial market data from Yahoo Finance.
+"""
+
 import os
 import logging
 from abc import ABC, abstractmethod
@@ -73,6 +79,17 @@ class DataLoader:
         logger.info(f"Setting the strategy for data loading: {strategy.__class__.__name__}")
         self._strategy = strategy
     
+    @property
+    def strategy(self) -> BaseDataLoader:
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy: BaseDataLoader) -> None:
+        if not isinstance(strategy, BaseDataLoader):
+            raise TypeError(f"Expected a BaseDataLoader, got {type(strategy)}")
+        logger.info(f"DataLoader — strategy set to: {type(strategy).__name__}")
+        self._strategy = strategy
+
     def set_strategy(self, strategy: BaseDataLoader)-> None:
         if not isinstance(strategy, BaseDataLoader):
             raise TypeError(f"Expected BaseDataLoader, got {type(strategy)}")
