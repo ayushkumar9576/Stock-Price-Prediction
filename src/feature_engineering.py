@@ -203,6 +203,103 @@ class ATRFeatureEngineer(BaseFeatureEngineer):
         logger.info("ATREngineering: %s", list(indicators.keys()))
         return indicators
 
+class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
+    def __init__(self, period: int = 20, std_multiplier: float = 2.0) -> None:
+        if not isinstance(period, int) or isinstance(period, bool):
+            raise TypeError("Bollinger Bands period must be an integer.")
+
+        if period <= 0:
+            raise ValueError("Bollinger Bands period must be a positive integer.")
+
+        if (not isinstance(std_multiplier, (int, float)) or isinstance(std_multiplier, bool)):
+            raise TypeError("Standard deviation multiplier must be a number.")
+
+        if std_multiplier <= 0:
+            raise ValueError("Standard deviation multiplier must be positive.")
+
+        self._period: int = period
+        self._std_multiplier: float = float(std_multiplier)
+
+    def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("Given input is not DataFrame.")
+
+        if df.empty:
+            raise ValueError("Given DataFrame is empty.")
+
+        if "Close" not in df.columns:
+            raise ValueError("Input DataFrame must contain a 'Close' column.")
+
+        if len(df) < self._period:
+            raise ValueError(f"DataFrame must contain at least {self._period} rows to compute Bollinger Bands.")
+
+        close = df["Close"]
+
+        middle_band = close.rolling(window=self._period, min_periods=self._period).mean()
+
+        rolling_std = close.rolling(window=self._period, min_periods=self._period).std(ddof=0)
+
+        upper_band = middle_band + self._std_multiplier * rolling_std
+
+        lower_band = middle_band - self._std_multiplier * rolling_std
+
+        indicators: dict[str, pd.Series] = { "Bollinger_Upper": upper_band, "Bollinger_Middle": middle_band, "Bollinger_Lower": lower_band, }
+
+        logger.debug("Computed Bollinger Bands using period=%s, " "std_multiplier=%s", self._period, self._std_multiplier)
+
+        logger.info("BollingerBandsEngineering: %s", list(indicators.keys()))
+
+        return indicators
+
+class OBVFeatureEngineer(BaseFeatureEngineer):
+
+    def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("Given input is not DataFrame.")
+
+        if df.empty:
+            raise ValueError("Given DataFrame is empty.")
+
+        required_columns = {"Close", "Volume"}
+        missing_columns = required_columns - set(df.columns)
+
+        if missing_columns:
+            raise ValueError(f"Input DataFrame is missing required columns: {sorted(missing_columns)}")
+
+        close = df["Close"]
+        volume = df["Volume"]
+        price_change = close.diff()
+        direction = np.sign(price_change).fillna(0)
+        signed_volume = volume * direction
+        obv = signed_volume.cumsum()
+        indicators: dict[str, pd.Series] = {"OBV": obv}
+
+        logger.debug("Computed OBV feature")
+
+        logger.info("OBVEngineering: %s", list(indicators.keys()))
+
+        return indicators
+
+class DailyReturnFeatureEngineer(BaseFeatureEngineer):
+    def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("Given input is not DataFrame.")
+        if df.empty:
+            raise ValueError("Given DataFrame is empty.")
+        if "Close" not in df.columns:
+            raise ValueError("Input DataFrame must contain a 'Close' column.")
+
+        close = df["Close"]
+        daily_return = close.pct_change(fill_method=None)
+        indicators: dict[str, pd.Series] = {"Daily_Return": daily_return}
+
+        logger.debug("Computed Daily Return feature.")
+        logger.info("DailyReturnEngineering: %s", list(indicators.keys()))
+
+        return indicators
+
+
+
 class FeatureEngineer:
     def __init__(self, strategy: BaseFeatureEngineer)-> None:
         if not isinstance(strategy, BaseFeatureEngineer):
