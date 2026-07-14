@@ -1,6 +1,22 @@
 """
-AVAILABLE STRATEGIES:
-    1. EMAFeatureEngineer — Generates Exponential Moving Average (EMA) features over specified window spans.
+Feature engineering strategies for OHLCV price data, following the Strategy pattern.
+
+AVAILABLE STRATEGIES (all inherit from BaseFeatureEngineer):
+    1. EMAFeatureEngineer          — Exponential Moving Averages over configurable spans.
+    2. RSIFeatureEngineer          — Relative Strength Index (Wilder-smoothed).
+    3. MACDFeatureEngineer         — MACD line, signal line, and histogram (EMA-based).
+    4. ATRFeatureEngineer          — Average True Range (Wilder-smoothed).
+    5. BollingerBandsFeatureEngineer — Upper/middle/lower bands (population std, ddof=0).
+    6. OBVFeatureEngineer          — On-Balance Volume.
+    7. DailyReturnFeatureEngineer  — Percentage close-to-close daily return.
+    8. PriceRelationshipFeatureEngineer — Intraday High-Low range and Close-Open change.
+
+COMPOSITION:
+    CompositeFeatureEngineer — runs a list of strategies against the same input
+        DataFrame and merges their outputs into one DataFrame, guarding against
+        duplicate feature names.
+    FeatureEngineer           — thin public-facing wrapper around
+        CompositeFeatureEngineer, for use by the shared prediction pipeline.
 """
 
 import logging
@@ -14,6 +30,24 @@ class BaseFeatureEngineer(ABC):
     @abstractmethod
     def transform(self, df: pd.DataFrame)-> dict[str, pd.Series]:
         raise NotImplementedError
+
+    @staticmethod
+    def _validate_dataframe(df: pd.DataFrame, required_columns: set[str]) -> None:
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("Given input is not a DataFrame.")
+        if df.empty:
+            raise ValueError("Given DataFrame is empty.")
+
+        missing_columns = required_columns - set(df.columns)
+        if missing_columns:
+            raise ValueError(f"Input DataFrame is missing required columns: {sorted(missing_columns)}")
+
+    @staticmethod
+    def _validate_positive_int(value: int, name: str) -> None:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(f"{name} must be an integer.")
+        if value <= 0:
+            raise ValueError(f"{name} must be a positive integer.")
 
     @staticmethod
     def _wilder_smoothing(series: pd.Series, period: int) -> pd.Series:
@@ -47,59 +81,38 @@ class EMAFeatureEngineer(BaseFeatureEngineer):
     def __init__(self, ema_span: list[int] | None = None)->None:
         if ema_span is not None and not isinstance(ema_span, list):
             raise TypeError("ema_span must be a list of integers.")
-        self._spans: list[int] = ema_span if ema_span is not None else [10, 20, 50, 100, 200]
-        
-        if not isinstance(self._spans, list):
-            raise TypeError("ema_spans must be a list of integers.")
+        self._spans: list[int] = (list(ema_span) if ema_span is not None else [10, 20, 50, 100, 200])
 
         if not self._spans:
             raise ValueError("ema_spans cannot be empty.")
 
-        if any(not isinstance(span, int) or isinstance(span, bool) for span in self._spans):
-            raise TypeError("All EMA spans must be integers.")
-
-        if any(span <= 0 for span in self._spans):
-            raise ValueError("All EMA spans must be positive integers.")
+        for span in self._spans:
+            self._validate_positive_int(span, "EMA span")
 
         if len(set(self._spans)) != len(self._spans):
             raise ValueError("EMA spans must be unique.")
         
     
     def transform(self, df: pd.DataFrame)-> dict[str, pd.Series]:
-
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame")
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-
-        if "Close" not in df.columns:
-            raise ValueError("Input DataFrame must contain a 'Close' column.")
+        self._validate_dataframe(df, {"Close"})
         
         close = df["Close"]
         indicators: dict[str, pd.Series] = {}
         for s in self._spans:
 
             indicators[f"EMA{s}"] = close.ewm(span=s, adjust=False).mean()
-            logger.debug(f"computed ema for EMA{s}")
+            logger.debug("computed ema for EMA%s",s)
         
-        logger.info(f"EMAEngineering: {list(indicators.keys())}")
+        logger.info("EMAEngineering: %s",list(indicators.keys()))
         return indicators
 
 class RSIFeatureEngineer(BaseFeatureEngineer):
     def __init__(self, period: int = 14) -> None:
-        if not isinstance(period, int) or isinstance(period, bool):
-            raise TypeError("RSI period must be an integer.")
-        if period <= 0:
-            raise ValueError("RSI period must be a positive integer.")
+        self._validate_positive_int(period, "RSI period")
         self._period: int = period
 
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame.")
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-        if "Close" not in df.columns:
-            raise ValueError("Input DataFrame must contain a 'Close' column")
+        self._validate_dataframe(df, {"Close"})
         if len(df) <= self._period:
             raise ValueError(f"DataFrame must contain more than {self._period} rows to compute RSI{self._period}.")
 
@@ -132,10 +145,8 @@ class MACDFeatureEngineer(BaseFeatureEngineer):
     def __init__(self, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> None:
         periods = {"fast_period": fast_period, "slow_period": slow_period, "signal_period": signal_period}
         for name, period in periods.items():
-            if not isinstance(period, int) or isinstance(period, bool):
-                raise TypeError(f"{name} must be an integer.")
-            if period <= 0:
-                raise ValueError(f"{name} must be a positive integer.")
+            self._validate_positive_int(period, name)
+
         if fast_period >= slow_period:
             raise ValueError("fast_period must be smaller than slow_period.")
         self._fast_period: int = fast_period
@@ -143,12 +154,7 @@ class MACDFeatureEngineer(BaseFeatureEngineer):
         self._signal_period: int = signal_period
 
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame.")
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-        if "Close" not in df.columns:
-            raise ValueError("Input DataFrame must contain a 'Close' column.")
+        self._validate_dataframe(df, {"Close"})
 
         close = df["Close"]
         fast_ema = close.ewm(span=self._fast_period, adjust=False).mean()
@@ -166,21 +172,11 @@ class MACDFeatureEngineer(BaseFeatureEngineer):
 
 class ATRFeatureEngineer(BaseFeatureEngineer):
     def __init__(self, period: int = 14) -> None:
-        if not isinstance(period, int) or isinstance(period, bool):
-            raise TypeError("ATR period must be an integer.")
-        if period <= 0:
-            raise ValueError("ATR period must be a positive integer.")
+        self._validate_positive_int(period, "ATR period")
         self._period: int = period
 
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame.")
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-        required_columns = {"High", "Low", "Close"}
-        missing_columns = required_columns - set(df.columns)
-        if missing_columns:
-            raise ValueError(f"Input DataFrame is missing required columns: {sorted(missing_columns)}")
+        self._validate_dataframe(df, {"High", "Low", "Close"})
         if len(df) < self._period:
             raise ValueError(f"DataFrame must contain at least {self._period} rows to compute ATR{self._period}.")
 
@@ -205,11 +201,7 @@ class ATRFeatureEngineer(BaseFeatureEngineer):
 
 class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
     def __init__(self, period: int = 20, std_multiplier: float = 2.0) -> None:
-        if not isinstance(period, int) or isinstance(period, bool):
-            raise TypeError("Bollinger Bands period must be an integer.")
-
-        if period <= 0:
-            raise ValueError("Bollinger Bands period must be a positive integer.")
+        self._validate_positive_int(period, "Bollinger Bands period")
 
         if (not isinstance(std_multiplier, (int, float)) or isinstance(std_multiplier, bool)):
             raise TypeError("Standard deviation multiplier must be a number.")
@@ -221,14 +213,7 @@ class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
         self._std_multiplier: float = float(std_multiplier)
 
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame.")
-
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-
-        if "Close" not in df.columns:
-            raise ValueError("Input DataFrame must contain a 'Close' column.")
+        self._validate_dataframe(df, {"Close"})
 
         if len(df) < self._period:
             raise ValueError(f"DataFrame must contain at least {self._period} rows to compute Bollinger Bands.")
@@ -252,19 +237,8 @@ class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
         return indicators
 
 class OBVFeatureEngineer(BaseFeatureEngineer):
-
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame.")
-
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-
-        required_columns = {"Close", "Volume"}
-        missing_columns = required_columns - set(df.columns)
-
-        if missing_columns:
-            raise ValueError(f"Input DataFrame is missing required columns: {sorted(missing_columns)}")
+        self._validate_dataframe(df, {"Close", "Volume"})
 
         close = df["Close"]
         volume = df["Volume"]
@@ -282,12 +256,7 @@ class OBVFeatureEngineer(BaseFeatureEngineer):
 
 class DailyReturnFeatureEngineer(BaseFeatureEngineer):
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Given input is not DataFrame.")
-        if df.empty:
-            raise ValueError("Given DataFrame is empty.")
-        if "Close" not in df.columns:
-            raise ValueError("Input DataFrame must contain a 'Close' column.")
+        self._validate_dataframe(df, {"Close"})
 
         close = df["Close"]
         daily_return = close.pct_change(fill_method=None)
@@ -298,34 +267,74 @@ class DailyReturnFeatureEngineer(BaseFeatureEngineer):
 
         return indicators
 
+class PriceRelationshipFeatureEngineer(BaseFeatureEngineer):
+    def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
+        self._validate_dataframe(df, {"Open", "High", "Low", "Close"})
 
+        high_low = df["High"] - df["Low"]
+        open_close = df["Close"] - df["Open"]
+        indicators: dict[str, pd.Series] = {"High_Low": high_low, "Open_Close": open_close}
 
+        logger.debug("PriceRelationshipEngineering computed: %s", list(indicators.keys()))
+
+        return indicators
+
+class CompositeFeatureEngineer:
+    def __init__(self, strategies: list[BaseFeatureEngineer] | None = None) -> None:
+        self._strategies: list[BaseFeatureEngineer] = (
+            list(strategies) if strategies is not None else 
+            [
+                EMAFeatureEngineer(),
+                RSIFeatureEngineer(),
+                MACDFeatureEngineer(),
+                ATRFeatureEngineer(),
+                BollingerBandsFeatureEngineer(),
+                OBVFeatureEngineer(),
+                DailyReturnFeatureEngineer(),
+                PriceRelationshipFeatureEngineer(),
+            ]
+        )
+
+        if not self._strategies:
+            raise ValueError("Feature engineering strategies cannot be empty.")
+
+        for strategy in self._strategies:
+            if not isinstance(strategy, BaseFeatureEngineer):
+                raise TypeError("All strategies must inherit from BaseFeatureEngineer.")
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        BaseFeatureEngineer._validate_dataframe(df, {"Open", "High", "Low", "Close", "Volume"})
+
+        engineered_df = df.copy()
+
+        for strategy in self._strategies:
+            features = strategy.transform(df)
+
+            if not isinstance(features, dict):
+                raise TypeError(f"{strategy.__class__.__name__}.transform() must return a dictionary.")
+
+            duplicate_features = (set(features) & set(engineered_df.columns))
+            if duplicate_features:
+                raise ValueError(f"Duplicate feature names detected: {sorted(duplicate_features)}")
+
+            for feature_name, feature_series in features.items():
+                if not isinstance(feature_name, str):
+                    raise TypeError("Feature names must be strings.")
+                if not isinstance(feature_series, pd.Series):
+                    raise TypeError(f"Feature '{feature_name}' must be a pandas Series.")
+                if not feature_series.index.equals(df.index):
+                    raise ValueError(f"Feature '{feature_name}' index does not match the input DataFrame index.")                
+
+                engineered_df[feature_name] = feature_series
+
+        return engineered_df
+    
 class FeatureEngineer:
-    def __init__(self, strategy: BaseFeatureEngineer)-> None:
-        if not isinstance(strategy, BaseFeatureEngineer):
-            raise TypeError(f"Expected BaseFeatureEngineer, got {type(strategy)}")
+    def __init__(self, engineer: CompositeFeatureEngineer | None = None) -> None:
+        if (engineer is not None and not isinstance(engineer, CompositeFeatureEngineer)):
+            raise TypeError("engineer must be a CompositeFeatureEngineer.")
 
-        logger.info(f"Setting the strategy for feature engineering: {strategy.__class__.__name__}")
-        self._strategy = strategy
-    
-    @property
-    def strategy(self) -> BaseFeatureEngineer:
-        return self._strategy
+        self._engineer: CompositeFeatureEngineer = (engineer if engineer is not None else CompositeFeatureEngineer())
 
-    @strategy.setter
-    def strategy(self, strategy: BaseFeatureEngineer) -> None:
-        if not isinstance(strategy, BaseFeatureEngineer):
-            raise TypeError(f"Expected a BaseFeatureEngineer, got {type(strategy)}")
-        logger.info(f"FeatureEngineer — strategy set to: {type(strategy).__name__}")
-        self._strategy = strategy
-
-    def set_strategy(self, strategy: BaseFeatureEngineer)-> None:
-        if not isinstance(strategy, BaseFeatureEngineer):
-            raise TypeError(f"Expected BaseFeatureEngineer, got {type(strategy)}")
-
-        logger.info(f"Changing the feature engineering strategy: {strategy.__class__.__name__}")
-        self._strategy = strategy
-    
-    def transform(self, df: pd.DataFrame)-> dict[str, pd.Series]:
-        logger.info("Performing Feature Engineering on the DataSet using the selected Strategy")
-        return self._strategy.transform(df)
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        return self._engineer.transform(df)
