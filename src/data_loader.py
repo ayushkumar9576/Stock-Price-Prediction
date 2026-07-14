@@ -44,7 +44,19 @@ class YFinanceLoader(BaseDataLoader):
 
         if df.empty:
             raise ValueError(f"No data returned for {ticker} between {start} and {end}")
-        
+
+        expected_columns = ["Open", "High", "Low", "Close", "Volume"]
+
+        missing_columns = [col for col in expected_columns if col not in df.columns]
+
+        if missing_columns:
+            raise ValueError(
+                f"Missing required columns: {missing_columns}. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+        df = df.loc[:, expected_columns]
+
         df.to_csv(cache_path)
         logger.info(f"Downloaded the data for {ticker} between {start} and {end}")
         return df
@@ -67,6 +79,18 @@ class CSVLoader(BaseDataLoader):
 
         if df.empty:
             raise ValueError(f"CSV for '{ticker}' has no data between {start} and {end}.")
+
+        expected_columns = ["Open", "High", "Low", "Close", "Volume"]
+
+        missing_columns = [col for col in expected_columns if col not in df.columns]
+
+        if missing_columns:
+            raise ValueError(
+                f"Missing required columns: {missing_columns}. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+        df = df.loc[:, expected_columns]
 
         logger.info(f"[{ticker}] Loaded {len(df)} rows from CSV.")
         return df
