@@ -53,7 +53,6 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
         if target_column not in df.columns:
             raise KeyError(f"Target column '{target_column}' not found in DataFrame.")
         
-        logger.info(f"Spliting the DataSet using the ration: {ratio}")
         size = len(df)
         split_idx = int(size*ratio)
 
@@ -63,7 +62,7 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
         y_train = df[[target_column]].iloc[:split_idx].copy()
         y_test = df[[target_column]].iloc[split_idx:].copy()
 
-        logger.info(f"Split → train: {X_train.shape[0]} rows | test: {X_test.shape[0]} rows | ratio: {ratio:.0%}")
+        logger.info(f"DataSet Splited → train: {X_train.shape[0]} rows | test: {X_test.shape[0]} rows | ratio: {ratio:.0%}")
 
         return X_train, X_test, y_train, y_test
     
@@ -80,7 +79,7 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
         self._target_column = y_train.columns[0]
 
         self._is_fitted = True
-        logger.debug("Feature and target scalers fitted successfully.")
+        logger.info("Feature and target scalers fitted successfully on %d training samples.", X_train.shape[0])
         return self
     
     def transform(self, X_train: pd.DataFrame, y_train: pd.DataFrame | None = None)-> tuple[np.ndarray, np.ndarray] | np.ndarray:
@@ -96,7 +95,7 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
         X_scaled = self._feature_scaler.transform(X_train)
 
         if y_train is None:
-            logger.info("Feature data transformed Sucessfully")
+            logger.info(f"Feature data transformed Sucessfully: shape = {X_scaled.shape}")
             return X_scaled
         
         if y_train.empty:
@@ -106,7 +105,7 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
         
         y_scaled = self._target_scaler.transform(y_train)
 
-        logger.info("Feature and target data transformed.")
+        logger.info(f"Feature and target data transformed: X_shape: {X_scaled.shape}, y_shape: {y_scaled.shape}")
 
         return X_scaled, y_scaled
 
@@ -118,7 +117,6 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
 
         if scaled.size == 0:
             raise ValueError("Input array cannot be empty.")
-
         if scaled.ndim == 1:
             scaled = scaled.reshape(-1, 1)
 
@@ -148,7 +146,7 @@ class DataPreprocessorAndSplitting:
         self.strategy = strategy
     
     def split(self, df: pd.DataFrame, feature_cols: list[str], target_column: str = "Close", ratio: float = 0.70) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        logger.info("Splitting the DataSet with the selected Strategy")
+        logger.info(f"Splitting the DataSet with the selected Strategy And using the ration: {ratio*100}")
         return self._strategy.split(df, feature_cols= feature_cols, target_column=target_column, ratio=ratio)
 
     def fit(self, X_train: pd.DataFrame, y_train: pd.DataFrame) -> Self:
@@ -157,7 +155,10 @@ class DataPreprocessorAndSplitting:
         return self
 
     def transform(self, X_train: pd.DataFrame, y_train: pd.DataFrame|None = None) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
-        logger.info("Scaling the training data with the fitted scaler")
+        if y_train is None:
+            logger.info("Transforming feature data using the fitted scaler")
+        else:
+            logger.info("Transforming feature and target data using the fitted scalers")
         return self._strategy.transform(X_train, y_train)
 
     def inverse_transform(self, scaled: np.ndarray) -> np.ndarray:

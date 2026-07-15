@@ -96,6 +96,7 @@ class EMAFeatureEngineer(BaseFeatureEngineer):
     def transform(self, df: pd.DataFrame)-> dict[str, pd.Series]:
         self._validate_dataframe(df, {"Close"})
         
+        logger.info(f"Calculation EMA's = {self._spans} for the DataSet")
         close = df["Close"]
         indicators: dict[str, pd.Series] = {}
         for s in self._spans:
@@ -115,6 +116,8 @@ class RSIFeatureEngineer(BaseFeatureEngineer):
         self._validate_dataframe(df, {"Close"})
         if len(df) <= self._period:
             raise ValueError(f"DataFrame must contain more than {self._period} rows to compute RSI{self._period}.")
+
+        logger.info("Calculating RSI feature for period=%d", self._period)
 
         close = df["Close"]
         delta = close.diff()
@@ -138,7 +141,7 @@ class RSIFeatureEngineer(BaseFeatureEngineer):
         indicators: dict[str, pd.Series] = {feature_name: rsi}
 
         logger.debug(f"Computed RSI feature: {feature_name}")
-        logger.info(f"RSIEngineering: {list(indicators.keys())}")
+        logger.info("RSI feature calculated successfully: %s", list(indicators.keys()))
         return indicators
 
 class MACDFeatureEngineer(BaseFeatureEngineer):
@@ -156,6 +159,8 @@ class MACDFeatureEngineer(BaseFeatureEngineer):
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
         self._validate_dataframe(df, {"Close"})
 
+        logger.info("Calculating MACD features with fast_period=%d, slow_period=%d, signal_period=%d", self._fast_period, self._slow_period, self._signal_period)
+
         close = df["Close"]
         fast_ema = close.ewm(span=self._fast_period, adjust=False).mean()
         slow_ema = close.ewm(span=self._slow_period, adjust=False).mean()
@@ -167,7 +172,7 @@ class MACDFeatureEngineer(BaseFeatureEngineer):
         indicators: dict[str, pd.Series] = {"MACD": macd, "MACD_Signal": macd_signal, "MACD_Histogram": macd_histogram}
 
         logger.debug("Computed MACD features using fast=%s, slow=%s, signal=%s", self._fast_period, self._slow_period, self._signal_period)
-        logger.info("MACDEngineering: %s", list(indicators.keys()),)
+        logger.info("MACD features calculated successfully: %s", list(indicators.keys()))
         return indicators
 
 class ATRFeatureEngineer(BaseFeatureEngineer):
@@ -179,6 +184,8 @@ class ATRFeatureEngineer(BaseFeatureEngineer):
         self._validate_dataframe(df, {"High", "Low", "Close"})
         if len(df) < self._period:
             raise ValueError(f"DataFrame must contain at least {self._period} rows to compute ATR{self._period}.")
+
+        logger.info("Calculating ATR feature for period=%d", self._period)
 
         high = df["High"]
         low = df["Low"]
@@ -196,7 +203,7 @@ class ATRFeatureEngineer(BaseFeatureEngineer):
         indicators: dict[str, pd.Series] = {feature_name: atr}
 
         logger.debug("Computed ATR feature: %s", feature_name)
-        logger.info("ATREngineering: %s", list(indicators.keys()))
+        logger.info("ATR feature calculated successfully: %s", list(indicators.keys()))
         return indicators
 
 class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
@@ -218,6 +225,8 @@ class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
         if len(df) < self._period:
             raise ValueError(f"DataFrame must contain at least {self._period} rows to compute Bollinger Bands.")
 
+        logger.info("Calculating Bollinger Bands features for period=%d and std_multiplier=%s", self._period, self._std_multiplier)
+
         close = df["Close"]
 
         middle_band = close.rolling(window=self._period, min_periods=self._period).mean()
@@ -231,14 +240,15 @@ class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
         indicators: dict[str, pd.Series] = { "Bollinger_Upper": upper_band, "Bollinger_Middle": middle_band, "Bollinger_Lower": lower_band, }
 
         logger.debug("Computed Bollinger Bands using period=%s, " "std_multiplier=%s", self._period, self._std_multiplier)
-
-        logger.info("BollingerBandsEngineering: %s", list(indicators.keys()))
+        logger.info("Bollinger Bands features calculated successfully: %s", list(indicators.keys()))
 
         return indicators
 
 class OBVFeatureEngineer(BaseFeatureEngineer):
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
         self._validate_dataframe(df, {"Close", "Volume"})
+
+        logger.info("Calculating OBV feature")
 
         close = df["Close"]
         volume = df["Volume"]
@@ -249,8 +259,7 @@ class OBVFeatureEngineer(BaseFeatureEngineer):
         indicators: dict[str, pd.Series] = {"OBV": obv}
 
         logger.debug("Computed OBV feature")
-
-        logger.info("OBVEngineering: %s", list(indicators.keys()))
+        logger.info("OBV feature calculated successfully: %s", list(indicators.keys()))
 
         return indicators
 
@@ -258,12 +267,14 @@ class DailyReturnFeatureEngineer(BaseFeatureEngineer):
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
         self._validate_dataframe(df, {"Close"})
 
+        logger.info("Calculating Daily Return feature")
+
         close = df["Close"]
         daily_return = close.pct_change(fill_method=None)
         indicators: dict[str, pd.Series] = {"Daily_Return": daily_return}
 
         logger.debug("Computed Daily Return feature.")
-        logger.info("DailyReturnEngineering: %s", list(indicators.keys()))
+        logger.info("Daily Return feature calculated successfully: %s", list(indicators.keys()))
 
         return indicators
 
@@ -271,11 +282,14 @@ class PriceRelationshipFeatureEngineer(BaseFeatureEngineer):
     def transform(self, df: pd.DataFrame) -> dict[str, pd.Series]:
         self._validate_dataframe(df, {"Open", "High", "Low", "Close"})
 
+        logger.info("Calculating price relationship features")
+
         high_low = df["High"] - df["Low"]
         open_close = df["Close"] - df["Open"]
         indicators: dict[str, pd.Series] = {"High_Low": high_low, "Open_Close": open_close}
 
         logger.debug("PriceRelationshipEngineering computed: %s", list(indicators.keys()))
+        logger.info("Price relationship features calculated successfully: %s", list(indicators.keys()))
 
         return indicators
 
@@ -301,9 +315,13 @@ class CompositeFeatureEngineer:
         for strategy in self._strategies:
             if not isinstance(strategy, BaseFeatureEngineer):
                 raise TypeError("All strategies must inherit from BaseFeatureEngineer.")
+        
+        logger.info(f"Setting the strategy for Feature Engineering: {strategy.__class__.__name__}")
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         BaseFeatureEngineer._validate_dataframe(df, {"Open", "High", "Low", "Close", "Volume"})
+
+        logger.info(f"Starting feature engineering using {len(self._strategies)} strategies")
 
         engineered_df = df.copy()
 
@@ -327,6 +345,8 @@ class CompositeFeatureEngineer:
 
                 engineered_df[feature_name] = feature_series
 
+        logger.info(f"Feature engineering completed successfully: {engineered_df.shape[1] - df.shape[1]} features added, total columns={engineered_df.shape[1]}")
+
         return engineered_df
     
 class FeatureEngineer:
@@ -337,4 +357,5 @@ class FeatureEngineer:
         self._engineer: CompositeFeatureEngineer = (engineer if engineer is not None else CompositeFeatureEngineer())
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        logger.info("Transforming the Dataset to add 17 More Features")
         return self._engineer.transform(df)
