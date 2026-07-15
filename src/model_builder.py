@@ -1,6 +1,5 @@
 import logging
 from abc import ABC, abstractmethod
-import pandas as pd
 import numpy as np
 from numpy.typing import NDArray
 from typing import Any
@@ -93,7 +92,7 @@ class BaseModel(ABC):
         pass
 
     @abstractmethod
-    def train(self, X: NDArray[np.number], y: NDArray[np.number], validation_data: tuple[NDArray[np.number], NDArray[np.number]] | None = None) -> Any:
+    def train(self, X: NDArray[np.number], y: NDArray[np.number]) -> Any:
         pass
 
     @abstractmethod
@@ -258,3 +257,100 @@ class LSTMModel(BaseModel):
 
         return history
     
+    def predict(self, X: NDArray[np.number])-> NDArray[np.number]:
+        if self._model is None:
+            raise RuntimeError("The model must be build or loaded before Prediction Ayush")
+        
+        self._validate_prediction_data(X)
+        self._validate_model_input_shape(X)
+        
+        logger.info(f"Generating predictions for {X.shape[0]} samples")
+
+        prediction = self._model.predict(X, verbose=0)
+
+        logger.info(f"Predictions generated successfully: shape={prediction.shape}")
+
+        return prediction
+    
+    def save(self, path: str | Path)-> None:
+        if self._model is None:
+            raise RuntimeError("Ayush mode must be created or loaded before saving")
+        
+        if not isinstance(path, (str, Path)):
+            raise TypeError("Path must be a string or a path")
+        
+        path = Path(path)
+        path.parent.mkdir(parents= True, exist_ok= True)
+
+        logger.info(f"Saving LSTM model to: {path}")
+
+        self._model.save(path)
+
+        logger.info(f"LSTM model saved successfully: {path}")
+
+    def load(self, path: str | Path)-> None:
+        if not isinstance(path, (str, Path)):
+            raise TypeError("Path must be a string or a path")
+        
+        path = Path(path)
+        
+        if not path.is_file():
+            raise FileNotFoundError(f"Model file not found: {path}")
+        
+        logger.info(f"Loading LSTM model from: {path}")
+
+        model = Keras_load_model(path)
+
+        if len(model.input_shape) != 3:
+            raise ValueError(f"The loaded model must accept 3D sequence input. Received input_shape={model.input_shape}.")
+        if model.output_shape[-1] != 1:
+            raise ValueError(f"The loaded model must produce exactly one output value per sample. Received output_shape={model.output_shape}.")
+        
+        self._model = model
+
+        logger.info(f"LSTM model loaded successfully: input_shape={tuple(model.input_shape[1:])}")
+
+class Model:
+    def __init__(self, strategy: BaseModel)-> None:
+        if not isinstance(strategy, BaseModel):
+            raise TypeError(f"Expected BaseModel, got {type(strategy)}")
+        logger.info(f"Setting the strategy for Model: {strategy.__class__.__name__}")
+        self._strategy = strategy
+    
+    @property
+    def strategy(self) -> BaseModel:
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy: BaseModel) -> None:
+        if not isinstance(strategy, BaseModel):
+            raise TypeError(f"Expected a BaseModel, got {type(strategy)}")
+        logger.info(f"Model Creation — strategy set to: {type(strategy).__name__}")
+        self._strategy = strategy
+
+    def set_strategy(self, strategy: BaseModel)-> None:
+        if not isinstance(strategy, BaseModel):
+            raise TypeError(f"Expected BaseModel, got {type(strategy)}")
+
+        logger.info(f"Changing the strategy for Model Creation: {strategy.__class__.__name__}")
+        self._strategy = strategy
+    
+    def build(self, input_shape: tuple[int, int]) -> None:
+        logger.info(f"Building model using strategy: {self._strategy.__class__.__name__}")
+        self._strategy.build(input_shape)
+    
+    def train(self, X: NDArray[np.number], y: NDArray[np.number])-> Any:
+        logger.info(f"Training model using strategy: {self._strategy.__class__.__name__}")
+        return self._strategy.train(X,y)
+
+    def predict(self, X: NDArray[np.number])->  NDArray[np.number]:
+        logger.info(f"Generating predictions using strategy: {self._strategy.__class__.__name__}")
+        return self._strategy.predict(X)
+    
+    def save(self, path: str | Path)-> None:
+        logger.info(f"Saving model using strategy: {self._strategy.__class__.__name__}")
+        self._strategy.save(path)
+
+    def load(self, path: str | Path)-> None:
+        logger.info(f"Loading model using strategy: {self._strategy.__class__.__name__}")
+        self._strategy.load(path)
