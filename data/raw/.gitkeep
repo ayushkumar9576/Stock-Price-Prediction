@@ -1,0 +1,4 @@
+This directory stores raw/cached CSV files downloaded by the data ingestion layer.
+
+Each ticker gets its own file named {TICKER}.csv (e.g., GOOG.csv, AAPL.csv).
+Files are created automatically when you run train.py or website/app.py.

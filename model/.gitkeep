@@ -1,0 +1,4 @@
+This directory stores trained model artifacts (.h5 or .keras files).
+
+The trained model is saved here automatically when train.py completes.
+Default filename: stock_dl_model.h5  (configured in config.yaml → paths.model_save)
