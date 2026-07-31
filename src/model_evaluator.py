@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
+from utils.console import starting, completion
 
 matplotlib.use("Agg")
 logger = logging.getLogger(__name__)
@@ -125,6 +126,8 @@ class RegressionEvaluator(BaseEvaluator):
 
 class ModelEvaluator:
     def __init__(self, strategy: BaseEvaluator)-> None:
+            self.name = "Model Evaluator"
+            self.start_time = starting(self.name)
             self._validate_strategy(strategy)
             logger.info(f"Setting the strategy for Model Evaluator: {strategy.__class__.__name__}")
             self._strategy = strategy

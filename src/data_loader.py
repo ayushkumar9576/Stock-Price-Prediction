@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 import pandas as pd
 import yfinance as yf
 from utils.console import starting, completion
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +27,21 @@ class YFinanceLoader(BaseDataLoader):
     def load(self, ticker: str, start: str, end: str)-> pd.DataFrame:
         logger.info("Downloading and caching the stock price data from Yahoo finance")
         os.makedirs(self._raw_dir, exist_ok=True)
-        cache_path = os.path.join(self._raw_dir, f"{ticker}.csv")
 
-        if os.path.exists(cache_path):
-            logger.info(f"[{ticker}] Loading the data from the cache file")
-            return pd.read_csv(cache_path, index_col="Date", parse_dates=True)
+        cache_path = os.path.join(self._raw_dir, f"{ticker}.csv")
+        meta_path = os.path.join(self._raw_dir, f"{ticker}.meta.json")
+
+        if os.path.exists(cache_path) and os.path.exists(meta_path):
+            try:
+                with open(meta_path, "r") as file:
+                    metadata = json.load(file)
+            except (json.JSONDecodeError, OSError):
+                metadata = None
+
+            if (metadata is not None and metadata["ticker"] == ticker and metadata["start"] <= start and metadata["end"] >= end):
+                logger.info(f"[{ticker}] Loading the data from the cache file")
+                df = pd.read_csv(cache_path, index_col="Date", parse_dates=True)
+                return df.loc[start:end]
         
         logger.info(f"[{ticker}] downloading the data from the Yahoo Finance between ({start} to {end})")
 
@@ -59,6 +70,14 @@ class YFinanceLoader(BaseDataLoader):
         df = df.loc[:, expected_columns]
 
         df.to_csv(cache_path)
+        metadata = {
+            "ticker": ticker,
+            "start": start,
+            "end": end
+        }
+        with open(meta_path, "w") as file:
+            json.dump(metadata, file, indent=4)
+        
         logger.info(f"Downloaded the data for {ticker} between {start} and {end}")
         return df
 

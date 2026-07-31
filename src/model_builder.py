@@ -11,6 +11,7 @@ from keras.losses import Huber
 from keras.metrics import MeanAbsoluteError
 from keras.models import Model as KerasModel, Sequential, load_model as Keras_load_model
 from keras.optimizers import Adam
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +313,8 @@ class LSTMModel(BaseModel):
 
 class Model:
     def __init__(self, strategy: BaseModel)-> None:
+        self.name = "Model Creation And Training"
+        self.start_time = starting(self.name)
         if not isinstance(strategy, BaseModel):
             raise TypeError(f"Expected BaseModel, got {type(strategy)}")
         logger.info(f"Setting the strategy for Model: {strategy.__class__.__name__}")
