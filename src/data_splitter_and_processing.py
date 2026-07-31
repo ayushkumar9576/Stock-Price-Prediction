@@ -10,6 +10,7 @@ from typing import Self
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,8 @@ class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
     
 class DataPreprocessorAndSplitting:
     def __init__(self, strategy: BaseDataSplitterAndProcessingClass)-> None:
+        self.name = "Data Splitting And Preprocessing"
+        self.start_time = starting(self.name)
         if not isinstance(strategy, BaseDataSplitterAndProcessingClass):
             raise TypeError(f"Expected BaseDataSplitterAndProcessingClass, got {type(strategy)}")
         logger.info(f"Setting the strategy for Data Scaling: {strategy.__class__.__name__}")
@@ -163,4 +166,5 @@ class DataPreprocessorAndSplitting:
 
     def inverse_transform(self, scaled: np.ndarray) -> np.ndarray:
         logger.info("Converting the scaled value back to the original value")
-        return self._strategy.inverse_transform(scaled)
+        ret = self._strategy.inverse_transform(scaled)
+        return ret

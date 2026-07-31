@@ -9,6 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 import pandas as pd
 import yfinance as yf
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,9 @@ class DataLoader:
         self._strategy = strategy
     
     def load(self, ticker: str, start: str, end: str)-> pd.DataFrame:
+        start_time = starting("Data Loader")
         logger.info("Loading the data using the selected strategy")
-        return self._strategy.load(ticker, start, end)
+        df = self._strategy.load(ticker, start, end)
+        completion("Data Loader", start_time)
+        return df
 

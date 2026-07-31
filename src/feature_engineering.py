@@ -23,6 +23,7 @@ import logging
 from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +317,6 @@ class CompositeFeatureEngineer:
             if not isinstance(strategy, BaseFeatureEngineer):
                 raise TypeError("All strategies must inherit from BaseFeatureEngineer.")
         
-        logger.info(f"Setting the strategy for Feature Engineering: {strategy.__class__.__name__}")
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         BaseFeatureEngineer._validate_dataframe(df, {"Open", "High", "Low", "Close", "Volume"})
@@ -351,6 +351,8 @@ class CompositeFeatureEngineer:
     
 class FeatureEngineer:
     def __init__(self, engineer: CompositeFeatureEngineer | None = None) -> None:
+        self._name = "Feature Engineering"
+        self._start_time = starting(self._name)
         if (engineer is not None and not isinstance(engineer, CompositeFeatureEngineer)):
             raise TypeError("engineer must be a CompositeFeatureEngineer.")
 
@@ -358,4 +360,6 @@ class FeatureEngineer:
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         logger.info("Transforming the Dataset to add 17 More Features")
-        return self._engineer.transform(df)
+        ret = self._engineer.transform(df)
+        completion(self._name, self._start_time)
+        return ret

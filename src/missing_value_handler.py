@@ -8,6 +8,7 @@ STRATEGIES:
 import logging
 from abc import ABC, abstractmethod
 import pandas as pd
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,8 @@ class MissingValueHandler:
     def __init__(self, strategy: BaseMissingValueStrategy)-> None:
         if not isinstance(strategy, BaseMissingValueStrategy):
             raise TypeError(f"Expected BaseMissingValueStrategy, got {type(strategy)}")
-        
+        self._name = "Missing Value Handler"
+        self._start_time = starting(self._name)
         logger.info(f"Setting the strategy for Handling Missing Values: {strategy.__class__.__name__}")
         self._strategy = strategy
     
@@ -118,6 +120,7 @@ class MissingValueHandler:
         self._strategy = strategy
 
     def set_strategy(self, strategy: BaseMissingValueStrategy)-> None:
+        self._start_time = starting(self._name)
         if not isinstance(strategy, BaseMissingValueStrategy):
             raise TypeError(f"Expected BaseMissingValueStrategy, got {type(strategy)}")
 
@@ -126,4 +129,6 @@ class MissingValueHandler:
     
     def handle_missing_value(self, df: pd.DataFrame)-> pd.DataFrame:
         logger.info("Handling the missing values using the selected strategy")
-        return self._strategy.handle_missing_value(df)
+        df = self._strategy.handle_missing_value(df)
+        completion(self._name, self._start_time)
+        return df
