@@ -1,9 +1,11 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
+import os
+import json
 import matplotlib
 import matplotlib.pyplot as plt
-from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class BaseEvaluator(ABC):
     @abstractmethod
-    def evaluate(self, y_true: ArrayLike, y_pred: ArrayLike)-> dict[str, float]:
+    def evaluate(self, y_true: ArrayLike, y_pred: ArrayLike, metrics_path: str, pred_path: str)-> None:
         pass
 
     @abstractmethod
@@ -65,7 +67,7 @@ class RegressionEvaluator(BaseEvaluator):
 
         return y_true, y_pred
 
-    def evaluate(self, y_true: ArrayLike, y_pred: ArrayLike)-> dict[str, float]:
+    def evaluate(self, y_true: ArrayLike, y_pred: ArrayLike, metrics_path: str = "results/metrics.json", pred_path: str = "results/predictions.txt")-> None:
         y_true, y_pred = self._validate_array(y_true, y_pred)
 
         mse = mean_squared_error(y_true, y_pred)
@@ -77,8 +79,23 @@ class RegressionEvaluator(BaseEvaluator):
             "r2_score": float(r2_score(y_true, y_pred)),
         }
 
-        logger.info(f"Regression evaluation completed: {metrices}")
-        return metrices
+        os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+        os.makedirs(os.path.dirname(pred_path), exist_ok=True)
+
+        with open(metrics_path, "w", encoding="utf-8") as file:
+            json.dump(metrices, file, indent=4)
+
+        with open(pred_path, "w", encoding="utf-8") as file:
+            file.write(f"{'Index':<8}{'Actual':>15}{'Predicted':>15}{'Error':>15}\n")
+            file.write("-" * 53 + "\n")
+            for idx, (actual, predicted) in enumerate(zip(y_true, y_pred)):
+                actual = float(actual)
+                predicted = float(predicted)
+                error = predicted - actual
+                file.write(f"{idx:<8} {actual:>15.4f} {predicted:>15.4f} {error:>15.4f}\n")
+
+        logger.info("Regression metrics: %s", metrices)
+        logger.info("Evaluation artifacts saved to '%s' and '%s'.",metrics_path, pred_path)
 
     def plot(self, y_true: ArrayLike, y_pred: ArrayLike, *, dates: ArrayLike | None = None, title: str = "Stock Price Prediction", save_path: str | Path = "plots/prediction.png")-> None:
         y_true, y_pred = self._validate_array(y_true, y_pred)
@@ -126,11 +143,12 @@ class RegressionEvaluator(BaseEvaluator):
 
 class ModelEvaluator:
     def __init__(self, strategy: BaseEvaluator)-> None:
-            self.name = "Model Evaluator"
-            self.start_time = starting(self.name)
-            self._validate_strategy(strategy)
-            logger.info(f"Setting the strategy for Model Evaluator: {strategy.__class__.__name__}")
-            self._strategy = strategy
+        self.name = "Model Evaluator"
+        self.start_time = starting(self.name)
+
+        self._validate_strategy(strategy)
+        logger.info(f"Setting the strategy for Model Evaluator: {strategy.__class__.__name__}")
+        self._strategy = strategy
 
     @staticmethod
     def _validate_strategy(strategy: BaseEvaluator)-> None:
@@ -153,10 +171,10 @@ class ModelEvaluator:
         logger.info(f"Changing the strategy for Model Evaluator: {strategy.__class__.__name__}")
         self._strategy = strategy
 
-    def evaluate(self, y_true: ArrayLike, y_pred: ArrayLike) -> dict[str, float]:
+    def evaluate(self, y_true: ArrayLike, y_pred: ArrayLike, metrics_path: str = "results/metrics.json", pred_path: str = "results/predictions.txt") -> None:
         logger.info("Evaluating the model with the selected Strategy")
-        return self._strategy.evaluate(y_true, y_pred)
+        return self._strategy.evaluate(y_true, y_pred, metrics_path, pred_path)
 
-    def plot(self, y_true: ArrayLike, y_pred: ArrayLike, *, dates: ArrayLike | None = None, title: str = "Stock Price Prediction", save_path: str | Path = "plots/prediction.png") -> None:
+    def plot(self, y_true: ArrayLike, y_pred: ArrayLike, *, dates: ArrayLike | None = None, title: str = "Stock Price Prediction", save_path: str | Path = "results/prediction.png") -> None:
         logger.info("Creating and Saving the Prediction graph")
         self._strategy.plot(y_true, y_pred, dates= dates, title= title, save_path= save_path)
