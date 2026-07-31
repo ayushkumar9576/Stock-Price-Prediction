@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from numpy.typing import NDArray
 import logging
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,8 @@ class SlidingWindowSequencer(BaseSequencer):
 
 class Sequencer:
     def __init__(self, strategy: BaseSequencer)-> None:
+        self.name = "Sequence Generator"
+        self.start_time = starting(self.name)
         self._validate_strategy(strategy)
         logger.info(f"Setting the strategy for Sequence Generator: {strategy.__class__.__name__}")
         self._strategy = strategy
@@ -158,4 +161,6 @@ class Sequencer:
     
     def generate_train_test_sequence(self, X_train: NDArray[np.number], y_train: NDArray[np.number], X_test: NDArray[np.number], y_test: NDArray[np.number])-> tuple[NDArray[np.number], NDArray[np.number], NDArray[np.number], NDArray[np.number]]:
         logger.info("Generating sequences for the Training and Testing data")
-        return self._strategy.generate_train_test_sequences(X_train, y_train, X_test, y_test)
+        ret = self._strategy.generate_train_test_sequences(X_train, y_train, X_test, y_test)
+        completion(self.name, self.start_time)
+        return ret

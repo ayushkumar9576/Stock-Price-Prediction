@@ -9,6 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 import numpy as np
 import pandas as pd
+from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,8 @@ class ZScoreOutlierDetector(BaseOutlierDetector):
 
 class OutlierDetection:
     def __init__(self, strategy: BaseOutlierDetector) -> None:
+        self._name = "Outlier Detection"
+        self._start_time = starting(self._name)
         logger.info(f"Setting the strategy for Outlier Detection: {strategy.__class__.__name__}")
         self.strategy = strategy
     
@@ -132,4 +135,6 @@ class OutlierDetection:
     
     def detect_and_handle(self, df: pd.DataFrame)-> pd.DataFrame:
         logger.info("Handling the ")
-        return self._strategy.detect_and_handle(df)
+        ret = self._strategy.detect_and_handle(df)
+        completion(self._name, self._start_time)
+        return ret
