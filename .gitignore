@@ -2,3 +2,5 @@ Virtual
 rating.txt
 __pycache__
 60_r2_score.keras
+model
+data

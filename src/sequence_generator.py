@@ -67,7 +67,7 @@ class BaseSequencer(ABC):
         raise NotImplementedError
     
 class SlidingWindowSequencer(BaseSequencer):
-    def __init__(self, lookback: int = 100) -> None:
+    def __init__(self, lookback: int = 30) -> None:
         self._validate_lookback(lookback)
         self._lookback = lookback
     
