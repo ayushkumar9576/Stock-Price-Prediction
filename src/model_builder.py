@@ -202,25 +202,17 @@ class LSTMModel(BaseModel):
 
         logger.info(f"Building LSTM model with input_shape={input_shape}, units={self._units}\ndropout_rates={self._dropout_rates}, dense_units={self._dense_units}")
 
-        close_col_idx = 3
-
-        inputs = Input(shape=input_shape, name="input_sequence")
-        x = inputs
+        model = Sequential(name="LSTMStockPredictor")
+        model.add(Input(shape=input_shape))
 
         for layer_index, (units, dropout_rate) in enumerate(zip(self._units, self._dropout_rates)):
             is_last_layer = layer_index == len(self._units) - 1
-            x = LSTM(units=units, return_sequences=not is_last_layer, name=f"lstm_{layer_index + 1}")(x)
+            model.add(LSTM(units=units, return_sequences=not is_last_layer, name=f"lstm_{layer_index + 1}"))
             if dropout_rate > 0:
-                x = Dropout(rate=dropout_rate, name=f"dropout_{layer_index + 1}")(x)
+                model.add(Dropout(rate=dropout_rate, name=f"dropout_{layer_index + 1}"))
 
-        x = Dense(units=self._dense_units, activation="elu", name="dense_hidden")(x)
-        delta = Dense(units=1, activation="linear", name="delta_pred")(x)
-
-        current_close = Lambda(lambda t: t[:, -1, close_col_idx:close_col_idx + 1], name="current_close")(inputs)
-
-        outputs = Add(name="output")([current_close, delta])
-
-        model = KerasModel(inputs=inputs, outputs=outputs, name="ResidualLSTMStockPredictor")
+        model.add(Dense(units=self._dense_units, activation="relu", name="dense_hidden"))
+        model.add(Dense(units=1, activation="linear", name="output"))
 
         optimizer = Adam(learning_rate=self._learning_rate, clipnorm=self._clipnorm)
         model.compile(optimizer=optimizer, loss="mse", metrics=[MeanAbsoluteError(name="mae")])
@@ -254,13 +246,7 @@ class LSTMModel(BaseModel):
 
         logger.info(f"Training LSTM model with samples={X.shape[0]}, epochs={self._epochs}, batch_size={self._batch_size}, validation_split={self._validation_split}")
         
-        indices = np.arange(X.shape[0])
-        rng = np.random.default_rng(seed=42)
-        rng.shuffle(indices)
-        X_shuffled = X[indices]
-        y_shuffled = y[indices]
-
-        history = self._model.fit(X_shuffled, y_shuffled, epochs=self._epochs, batch_size=self._batch_size, validation_split=self._validation_split, shuffle=True, callbacks=self._create_callback(), verbose=1)
+        history = self._model.fit(X, y, epochs=self._epochs, batch_size=self._batch_size, validation_split=self._validation_split, shuffle=False, callbacks=self._create_callback(), verbose=1)
 
         best_validation_loss = min(history.history["val_loss"])
         best_validation_mae = min(history.history["val_mae"])

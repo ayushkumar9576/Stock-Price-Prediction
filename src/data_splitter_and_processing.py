@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Self
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from utils.console import starting, completion
 
 logger = logging.getLogger(__name__)
@@ -31,10 +31,10 @@ class BaseDataSplitterAndProcessingClass(ABC):
     def inverse_transform(self, scaled: np.ndarray)-> np.ndarray:
         pass
 
-class MinMaxDataScaler(BaseDataSplitterAndProcessingClass):
-    def __init__(self, feature_range: tuple[float, float] = (0,1))-> None:
-        self._feature_scaler = MinMaxScaler(feature_range=feature_range)
-        self._target_scaler = MinMaxScaler(feature_range=feature_range)
+class StandardDataScaler(BaseDataSplitterAndProcessingClass):
+    def __init__(self) -> None:
+        self._feature_scaler = StandardScaler()
+        self._target_scaler = StandardScaler()
 
         self._is_fitted = False
 
