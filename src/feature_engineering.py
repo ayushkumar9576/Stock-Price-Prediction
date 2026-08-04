@@ -237,8 +237,16 @@ class BollingerBandsFeatureEngineer(BaseFeatureEngineer):
         upper_band = middle_band + self._std_multiplier * rolling_std
 
         lower_band = middle_band - self._std_multiplier * rolling_std
+        bb_width = (upper_band - lower_band) / (middle_band + 1e-8)
+        bb_pct = (close - lower_band) / ((upper_band - lower_band) + 1e-8)
 
-        indicators: dict[str, pd.Series] = { "Bollinger_Upper": upper_band, "Bollinger_Middle": middle_band, "Bollinger_Lower": lower_band, }
+        indicators: dict[str, pd.Series] = {
+            f"BB_Upper_{self._period}": upper_band,
+            f"BB_Middle_{self._period}": middle_band,
+            f"BB_Lower_{self._period}": lower_band,
+            f"BB_Width_{self._period}": bb_width,
+            f"BB_Pct_{self._period}": bb_pct,
+        }
 
         logger.debug("Computed Bollinger Bands using period=%s, " "std_multiplier=%s", self._period, self._std_multiplier)
         logger.info("Bollinger Bands features calculated successfully: %s", list(indicators.keys()))
@@ -257,7 +265,11 @@ class OBVFeatureEngineer(BaseFeatureEngineer):
         direction = np.sign(price_change).fillna(0)
         signed_volume = volume * direction
         obv = signed_volume.cumsum()
-        indicators: dict[str, pd.Series] = {"OBV": obv}
+
+        cum_abs_vol = volume.cumsum().clip(lower=1)
+        obv_normalized = obv / cum_abs_vol
+
+        indicators: dict[str, pd.Series] = {"OBV": obv_normalized}
 
         logger.debug("Computed OBV feature")
         logger.info("OBV feature calculated successfully: %s", list(indicators.keys()))
@@ -287,7 +299,12 @@ class PriceRelationshipFeatureEngineer(BaseFeatureEngineer):
 
         high_low = df["High"] - df["Low"]
         open_close = df["Close"] - df["Open"]
-        indicators: dict[str, pd.Series] = {"High_Low": high_low, "Open_Close": open_close}
+        high_close = df["High"] - df["Close"]
+        close_low = df["Close"] - df["Low"]
+        mom_5 = df["Close"].pct_change(5)
+        mom_10 = df["Close"].pct_change(10)
+
+        indicators: dict[str, pd.Series] = {"High_Low": high_low, "Open_Close": open_close, "High_Close": high_close, "Close_Low": close_low, "Mom_5": mom_5, "Mom_10": mom_10}
 
         logger.debug("PriceRelationshipEngineering computed: %s", list(indicators.keys()))
         logger.info("Price relationship features calculated successfully: %s", list(indicators.keys()))
