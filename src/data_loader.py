@@ -46,7 +46,7 @@ class YFinanceLoader(BaseDataLoader):
         logger.info(f"[{ticker}] downloading the data from the Yahoo Finance between ({start} to {end})")
 
         try:
-            df = yf.download(ticker, start= start,end= end, auto_adjust=True)
+            df = yf.download(ticker, start= start,end= end, auto_adjust=True, multi_level_index=False)
         except Exception as e:
             raise RuntimeError(f"Failed to downlaod the data for {ticker}") from e
 

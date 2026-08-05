@@ -111,6 +111,7 @@ def train_pipeline():
     missing_value.set_strategy(_MISSING_VALUE_STRATEGIES[missing_cfg["after_feature_engineering"]["strategy"]](axis=missing_cfg["after_feature_engineering"]["axis"], thresh=missing_cfg["after_feature_engineering"]["thresh"]))
     df = missing_value.handle_missing_value(df)
 
+    raw_close = df["Close"].values.copy()
     target_column = config["target"]["column"]
     df[target_column] = df["Close"].pct_change().shift(-1)
     df = df.dropna(subset=[target_column]).reset_index(drop=True)
@@ -127,7 +128,6 @@ def train_pipeline():
     feature_cols = [c for c in df.columns if c != target_column]
     splitter_and_preprocessing = DataPreprocessorAndSplitting(_PREPROCESSOR_STRATEGIES[preprocess_cfg["strategy"]]())
     X_train, X_test, y_train, y_test = splitter_and_preprocessing.split(df, feature_cols=feature_cols, target_column=target_column)
-    test_close_raw = df["Close"].iloc[split_idx:].values
 
     splitter_and_preprocessing.fit(X_train, y_train)
     (X_train, y_train), (X_test, y_test) = splitter_and_preprocessing.transform(X_train, y_train), splitter_and_preprocessing.transform(X_test, y_test)
@@ -151,20 +151,20 @@ def train_pipeline():
         reduce_lr_patience=model_cfg["reduce_lr"]["patience"], 
         reduce_lr_factor=model_cfg["reduce_lr"]["factor"], 
         min_learning_rate=model_cfg["reduce_lr"]["min_learning_rate"], 
-        checkpoint_path=path_cfg["model"])
+        checkpoint_path=resolve_path(path_cfg["model"]))
     )
     if pipeline_cfg["train_model"]:
         model.build(input_shape=(X_train_sequence.shape[1], X_train_sequence.shape[2]))
         model.train(X_train_sequence, y_train_sequence)
     else:
-        model.load(path_cfg["model"])
+        model.load(resolve_path(path_cfg["model"]))
     y_pred_scaled = model.predict(X_test_sequence)
     completion(model.name, model.start_time)
 
     pred_returns = splitter_and_preprocessing.inverse_transform(y_pred_scaled).flatten()
     n_preds = len(pred_returns)
-    test_base_prices = df["Close"].iloc[split_idx - 1 : split_idx - 1 + n_preds].values
-    test_actual_prices = df["Close"].iloc[split_idx : split_idx + n_preds].values
+    test_base_prices = raw_close[split_idx : split_idx + n_preds]
+    test_actual_prices = raw_close[split_idx + 1 : split_idx + 1 + n_preds]
     y_pred_close = test_base_prices * (1.0 + pred_returns)
     y_true_close = test_actual_prices
     evaluator = ModelEvaluator(_EVALUATOR_STRATEGIES[evaluation_cfg["strategy"]]())
