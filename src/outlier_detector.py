@@ -34,7 +34,7 @@ class IQROutlierDetector(BaseOutlierDetector):
     def detect_and_handle(self, df: pd.DataFrame)-> pd.DataFrame:
         logger.info("Detecting and handling outlier in the dataset")
         df = df.copy()
-        cols = self._columns if self._columns is not None else df.select_dtypes(include="number").columns.tolist()
+        cols = self._columns if self._columns is not None else ["Volume"]
         total = 0
 
         for col in cols:
@@ -78,7 +78,7 @@ class ZScoreOutlierDetector(BaseOutlierDetector):
     def detect_and_handle(self, df: pd.DataFrame) -> pd.DataFrame:
         logger.info("Detecting and handling outlier in the dataset")
         df = df.copy()
-        cols = self._columns or df.select_dtypes(include="number").columns.tolist()
+        cols = self._columns if self._columns is not None else ["Volume"]
         total = 0
 
         for col in cols:
@@ -111,7 +111,6 @@ class ZScoreOutlierDetector(BaseOutlierDetector):
         logger.info("Handled all the outlier in the dataset.")
         return df
 
-
 class OutlierDetection:
     def __init__(self, strategy: BaseOutlierDetector) -> None:
         self._name = "Outlier Detection"
@@ -134,7 +133,7 @@ class OutlierDetection:
         self.strategy = strategy
     
     def detect_and_handle(self, df: pd.DataFrame)-> pd.DataFrame:
-        logger.info("Handling the ")
+        logger.info("Handling the outlier with the selected strategy")
         ret = self._strategy.detect_and_handle(df)
         completion(self._name, self._start_time)
         return ret

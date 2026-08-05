@@ -10,13 +10,13 @@ from typing import Self
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from utils.console import starting, completion
+from utils.console import starting
 
 logger = logging.getLogger(__name__)
 
 class BaseDataSplitterAndProcessingClass(ABC):
     @abstractmethod
-    def split(self, df: pd.DataFrame, feature_cols: list[str], target_column: str = "Close", ratio: float = 0.7)-> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def split(self, df: pd.DataFrame, feature_cols: list[str], target_column: str = "Target_Return", ratio: float = 0.7)-> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         pass
 
     @abstractmethod
@@ -41,7 +41,7 @@ class StandardDataScaler(BaseDataSplitterAndProcessingClass):
         self._feature_columns: list[str] | None = None
         self._target_column: str | None = None
     
-    def split(self, df: pd.DataFrame, feature_cols: list[str],target_column: str = "Close", ratio: float = 0.7)-> tuple[pd.DataFrame, pd.DataFrame,pd.DataFrame, pd.DataFrame]:
+    def split(self, df: pd.DataFrame, feature_cols: list[str],target_column: str = "Target_Return", ratio: float = 0.7)-> tuple[pd.DataFrame, pd.DataFrame,pd.DataFrame, pd.DataFrame]:
         if not 0 < ratio < 1:
             raise ValueError("ratio must be between 0 and 1.")
         if not feature_cols:
@@ -148,7 +148,7 @@ class DataPreprocessorAndSplitting:
     def set_strategy(self, strategy: BaseDataSplitterAndProcessingClass) -> None:
         self.strategy = strategy
     
-    def split(self, df: pd.DataFrame, feature_cols: list[str], target_column: str = "Close", ratio: float = 0.70) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def split(self, df: pd.DataFrame, feature_cols: list[str], target_column: str = "Target_Return", ratio: float = 0.70) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         logger.info(f"Splitting the DataSet with the selected Strategy And using the ration: {ratio*100}")
         return self._strategy.split(df, feature_cols= feature_cols, target_column=target_column, ratio=ratio)
 

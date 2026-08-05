@@ -34,6 +34,5 @@ def get_config() -> dict[str, Any]:
 
     return _CONFIG
 
-
 def resolve_path(relative_path: str | Path) -> Path:
     return (ROOT / relative_path).resolve()

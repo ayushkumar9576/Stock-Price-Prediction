@@ -376,7 +376,7 @@ class FeatureEngineer:
         self._engineer: CompositeFeatureEngineer = (engineer if engineer is not None else CompositeFeatureEngineer())
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        logger.info("Transforming the Dataset to add 17 More Features")
+        logger.info("Transforming the Dataset to add 23 More Features")
         ret = self._engineer.transform(df)
         completion(self._name, self._start_time)
         return ret

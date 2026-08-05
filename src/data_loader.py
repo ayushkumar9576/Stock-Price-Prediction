@@ -147,4 +147,3 @@ class DataLoader:
         df = self._strategy.load(ticker, start, end)
         completion("Data Loader", start_time)
         return df
-

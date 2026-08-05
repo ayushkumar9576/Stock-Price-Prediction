@@ -45,7 +45,6 @@ class TimeSeriesImputer(BaseMissingValueStrategy):
                     f" After filling: {after} missing columns")
         return df
 
-
 class MeanImputer(BaseMissingValueStrategy):
     def __init__(self, columns: list[str] | None = None)-> None:
         self._columns = columns
@@ -74,7 +73,6 @@ class MeanImputer(BaseMissingValueStrategy):
                     f"After filling: {after} missing columns")
 
         return df
-
 
 class DropMissingValues(BaseMissingValueStrategy):
     def __init__(self, axis: int = 0, thresh: int|None = None)-> None:
