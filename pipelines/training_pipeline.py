@@ -39,36 +39,94 @@ from utils.console import starting, completion
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
 
+_LOADER_STRATEGIES = {
+    "YFinanceLoader": YFinanceLoader,
+    "CSVLoader": CSVLoader
+}
+
+_PREPROCESSOR_STRATEGIES = {
+    "StandardDataScaler": StandardDataScaler
+}
+
+_FEATURE_ENGINEERING_STRATEGIES = {
+    "CompositeFeatureEngineer": CompositeFeatureEngineer
+}
+
+_MISSING_VALUE_STRATEGIES = {
+    "DropMissingValues": DropMissingValues,
+    "TimeSeriesImputer": TimeSeriesImputer,
+    "MeanImputer": MeanImputer
+}
+
+_MODEL_STRATEGIES = {
+    "LSTMModel": LSTMModel
+}
+
+_EVALUATOR_STRATEGIES = {
+    "RegressionEvaluator": RegressionEvaluator
+}
+
+_OUTLIER_STRATEGIES = {
+    "IQROutlierDetector": IQROutlierDetector,
+    "ZScoreOutlierDetector": ZScoreOutlierDetector
+}
+
+_SEQUENCE_STRATEGIES = {
+    "SlidingWindowSequencer": SlidingWindowSequencer
+}
 
 def train_pipeline():
+    config = get_config()
 
-    data_loader = DataLoader(YFinanceLoader("data/raw"))
-    df = data_loader.load("TSLA", "2010-06-29", "2026-07-30")
+    loader_cfg = config["data_loader"]
+    preprocess_cfg = config["data_splitter_and_processing"]
+    feature_cfg = config["feature_engineering"]
+    missing_cfg = config["missing_value"]
+    model_cfg = config["model"]
+    evaluation_cfg = config["model_evaluation"]
+    outlier_cfg = config["outlier_detection"]
+    sequence_cfg = config["sequence_generator"]
+    path_cfg = config["path"]
+    pipeline_cfg = config["pipelines"]
 
-    missing_value = MissingValueHandler(TimeSeriesImputer())
+    data_loader = DataLoader(_LOADER_STRATEGIES[loader_cfg["strategy"]](resolve_path(path_cfg["raw_data"])))
+    df = data_loader.load(loader_cfg["ticker"], loader_cfg["start_date"], loader_cfg["end_date"])
+
+    missing_value = MissingValueHandler(_MISSING_VALUE_STRATEGIES[missing_cfg["initial"]["strategy"]](columns=missing_cfg["initial"]["columns"]))
     df = missing_value.handle_missing_value(df)
 
-    feature_engineering = FeatureEngineer(CompositeFeatureEngineer([EMAFeatureEngineer(), RSIFeatureEngineer(), MACDFeatureEngineer(), ATRFeatureEngineer(), BollingerBandsFeatureEngineer(), OBVFeatureEngineer(), DailyReturnFeatureEngineer(), PriceRelationshipFeatureEngineer()]))    
+    feature_engineering = FeatureEngineer(_FEATURE_ENGINEERING_STRATEGIES[feature_cfg["strategy"]](
+        [EMAFeatureEngineer(ema_span=feature_cfg["ema"]["spans"]), 
+        RSIFeatureEngineer(period=feature_cfg["rsi"]["period"]),
+        MACDFeatureEngineer(fast_period=feature_cfg["macd"]["fast_period"], slow_period=feature_cfg["macd"]["slow_period"], signal_period=feature_cfg["macd"]["signal_period"]), 
+        ATRFeatureEngineer(period=feature_cfg["atr"]["period"]), 
+        BollingerBandsFeatureEngineer(period=feature_cfg["bollinger_bands"]["period"], std_multiplier=feature_cfg["bollinger_bands"]["std_multiplier"]), 
+        OBVFeatureEngineer(), 
+        DailyReturnFeatureEngineer(), 
+        PriceRelationshipFeatureEngineer()]
+        )
+    )    
     df = feature_engineering.transform(df)
 
-    missing_value.set_strategy(DropMissingValues())
+    missing_value.set_strategy(_MISSING_VALUE_STRATEGIES[missing_cfg["after_feature_engineering"]["strategy"]](axis=missing_cfg["after_feature_engineering"]["axis"], thresh=missing_cfg["after_feature_engineering"]["thresh"]))
     df = missing_value.handle_missing_value(df)
 
-    df["Target_Return"] = df["Close"].pct_change().shift(-1)
-    df = df.dropna(subset=["Target_Return"]).reset_index(drop=True)
+    target_column = config["target"]["column"]
+    df[target_column] = df["Close"].pct_change().shift(-1)
+    df = df.dropna(subset=[target_column]).reset_index(drop=True)
 
-    split_idx = int(len(df) * 0.70)
+    split_idx = int(len(df) * preprocess_cfg["train_split_ratio"])
     df_train_portion = df.iloc[:split_idx].copy()
     df_test_portion  = df.iloc[split_idx:].copy()
 
-    outlier_detection = OutlierDetection(IQROutlierDetector(columns=["Volume"]))
+    outlier_detection = OutlierDetection(_OUTLIER_STRATEGIES[outlier_cfg["strategy"]](columns=outlier_cfg["columns"], factor=outlier_cfg["factor"], action=outlier_cfg["action"]))
     df_train_portion = outlier_detection.detect_and_handle(df_train_portion)
 
     df = pd.concat([df_train_portion, df_test_portion])
 
-    feature_cols = [c for c in df.columns if c != "Target_Return"]
-    splitter_and_preprocessing = DataPreprocessorAndSplitting(StandardDataScaler())
-    X_train, X_test, y_train, y_test = splitter_and_preprocessing.split(df, feature_cols=feature_cols, target_column="Target_Return")
+    feature_cols = [c for c in df.columns if c != target_column]
+    splitter_and_preprocessing = DataPreprocessorAndSplitting(_PREPROCESSOR_STRATEGIES[preprocess_cfg["strategy"]]())
+    X_train, X_test, y_train, y_test = splitter_and_preprocessing.split(df, feature_cols=feature_cols, target_column=target_column)
     test_close_raw = df["Close"].iloc[split_idx:].values
 
     splitter_and_preprocessing.fit(X_train, y_train)
@@ -76,15 +134,30 @@ def train_pipeline():
     completion(splitter_and_preprocessing.name, splitter_and_preprocessing.start_time)
 
 
-    sequence_generator = Sequencer(SlidingWindowSequencer())
+    sequence_generator = Sequencer(_SEQUENCE_STRATEGIES[sequence_cfg["strategy"]](lookback=sequence_cfg["lookback"]))
     X_train_sequence, y_train_sequence, X_test_sequence, y_test_sequence = sequence_generator.generate_train_test_sequence(X_train, y_train, X_test, y_test)
 
-    model = Model(LSTMModel(units=[256, 128], dropout_rates=[0.05, 0.05], dense_units=64, learning_rate=0.001, clipnorm=1, epochs=200, batch_size=16, validation_split=0.1, early_stopping_patience=25, early_stopping_min_delta=1e-5, reduce_lr_patience=3, reduce_lr_factor=0.5, min_learning_rate=1e-6, checkpoint_path="model/lstm_MODEL.keras"))
-    if _MODEL:
+    model = Model(_MODEL_STRATEGIES[model_cfg["strategy"]](
+        units=model_cfg["units"], 
+        dropout_rates=model_cfg["dropout_rates"], 
+        dense_units=model_cfg["dense_units"], 
+        learning_rate=model_cfg["learning_rate"], 
+        clipnorm=model_cfg["clipnorm"], 
+        epochs=model_cfg["epochs"], 
+        batch_size=model_cfg["batch_size"], 
+        validation_split=model_cfg["validation_split"], 
+        early_stopping_patience=model_cfg["early_stopping"]["patience"], 
+        early_stopping_min_delta=model_cfg["early_stopping"]["min_delta"], 
+        reduce_lr_patience=model_cfg["reduce_lr"]["patience"], 
+        reduce_lr_factor=model_cfg["reduce_lr"]["factor"], 
+        min_learning_rate=model_cfg["reduce_lr"]["min_learning_rate"], 
+        checkpoint_path=path_cfg["model"])
+    )
+    if pipeline_cfg["train_model"]:
         model.build(input_shape=(X_train_sequence.shape[1], X_train_sequence.shape[2]))
         model.train(X_train_sequence, y_train_sequence)
     else:
-        model.load("model/lstm_MODEL.keras")
+        model.load(path_cfg["model"])
     y_pred_scaled = model.predict(X_test_sequence)
     completion(model.name, model.start_time)
 
@@ -94,9 +167,10 @@ def train_pipeline():
     test_actual_prices = df["Close"].iloc[split_idx : split_idx + n_preds].values
     y_pred_close = test_base_prices * (1.0 + pred_returns)
     y_true_close = test_actual_prices
-    evaluator = ModelEvaluator(RegressionEvaluator())
-    evaluator.evaluate(y_true_close, y_pred_close)
-    evaluator.plot(y_true_close, y_pred_close)
+    evaluator = ModelEvaluator(_EVALUATOR_STRATEGIES[evaluation_cfg["strategy"]]())
+    evaluator.evaluate(y_true=y_true_close, y_pred=y_pred_close, metrics_path=resolve_path(path_cfg["metrics"]), pred_path=resolve_path(path_cfg["prediction"]))
+    evaluator.plot(y_true=y_true_close, y_pred=y_pred_close, save_path=resolve_path(path_cfg["plot"]))
+    completion(evaluator.name, evaluator.start_time)
 
 
 if __name__ == "__main__":

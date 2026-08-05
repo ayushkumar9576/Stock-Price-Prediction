@@ -1,0 +1,115 @@
+  # Central configuration for the Stock Price Prediction project.
+
+project:
+  name: "Stock Price Prediction"
+  version: "1.0.0"
+  random_seed: 42
+
+data_loader:
+  start_date: "2010-06-29"
+  end_date: "2026-07-30"
+  ticker: "TSLA"
+  strategy: YFinanceLoader  # Alternate: CSVLoader
+
+data_splitter_and_processing:
+  strategy: StandardDataScaler
+  train_split_ratio: 0.70
+
+feature_engineering:
+  strategy: CompositeFeatureEngineer
+
+  ema:
+    spans:
+      - 10
+      - 20
+      - 50
+      - 100
+      - 200
+
+  rsi:
+    period: 14
+
+  macd:
+    fast_period: 12
+    slow_period: 26
+    signal_period: 9
+
+  atr:
+    period: 14
+
+  bollinger_bands:
+    period: 20
+    std_multiplier: 2.0
+
+  obv: {}
+
+  daily_return: {}
+
+  price_relationship: {}
+
+missing_value:
+  initial:
+    strategy: TimeSeriesImputer   # Alternate: MeanImputer, DropMissingValues
+    columns: null
+
+  after_feature_engineering:
+    strategy: DropMissingValues   # Alternate: MeanImputer, TimeSeriesImputer
+    axis: 0
+    thresh: null
+     
+model:
+  strategy: LSTMModel
+
+  units:
+    - 256
+    - 128
+
+  dropout_rates:
+    - 0.05
+    - 0.05
+
+  dense_units: 64
+
+  learning_rate: 0.001
+  clipnorm: 1.0
+
+  epochs: 200
+  batch_size: 16
+  validation_split: 0.1
+
+  early_stopping:
+    patience: 25
+    min_delta: 1.0e-5
+
+  reduce_lr:
+    patience: 3
+    factor: 0.5
+    min_learning_rate: 1.0e-6
+
+model_evaluation:
+  strategy: RegressionEvaluator
+
+outlier_detection:
+  strategy: IQROutlierDetector    # Alternate: ZScoreOutlierDetector
+  columns:
+    - Volume
+  factor: 1.5
+  action: "clip"                  # Alternate: remove
+  threshold: 3.0
+
+sequence_generator:
+  strategy: SlidingWindowSequencer
+  lookback: 30
+
+pipelines:
+  train_model: False
+
+path:
+  raw_data: "data/raw"
+  model: "model/lstm_model.keras"
+  metrics: "results/metrics.json"
+  prediction: "results/predictions.txt"
+  plot: "results/prediction.png"
+
+target:
+  column: Target_Return
